@@ -57,7 +57,7 @@ tools:
       required: [url]
 
   - name: format
-    description: "Trình bày dữ liệu đã có thành văn bản."
+    description: "Trình bày dữ liệu đã có thành văn bản. CHỈ dùng khi user yêu cầu rõ ràng việc tạo bản tin, digest, hoặc tổng hợp. Không được tự động gọi sau khi chạy tool khác."
     parameters:
       type: object
       properties:
@@ -116,6 +116,26 @@ tools:
         max_pages: {type: integer, default: 5, description: "Số trang"}
         max_chars: {type: integer, default: 8000, description: "Số ký tự"}
       required: [arxiv_url]
+
+  - name: wikipedia
+    description: "Tra cứu kiến thức nền trên Wikipedia. Dùng cho định nghĩa, khái niệm, tiểu sử, sự kiện lịch sử. Trả về tóm tắt + URL. Dùng khi user hỏi 'X là gì?', 'Ai là Y?'. Không dùng cho tin tức hiện tại (dùng lookup)."
+    parameters:
+      type: object
+      properties:
+        query: {type: string, default: "", description: "Tên chủ đề, người, hoặc sự kiện"}
+        lang: {type: string, default: "en", description: "Mã ngôn ngữ (en, vi, fr, ...)"}
+        limit: {type: integer, default: 3, description: "Số kết quả"}
+      required: [query]
+
+  - name: translate
+    description: "Dịch văn bản giữa các ngôn ngữ qua Google Translate. Dùng khi user yêu cầu dịch một đoạn text. target_lang là ngôn ngữ đích (vi, en, fr, ja, ko, zh, ...). source_lang mặc định 'auto' tự phát hiện."
+    parameters:
+      type: object
+      properties:
+        text: {type: string, default: "", description: "Văn bản cần dịch"}
+        target_lang: {type: string, default: "vi", description: "Ngôn ngữ đích (vi, en, fr, ...)"}
+        source_lang: {type: string, default: "auto", description: "Ngôn ngữ nguồn (auto để tự phát hiện)"}
+      required: [text, target_lang]
 
   - name: book
     description: "Tim sach qua BigBookAPI theo tua sach, tac gia hoac tu khoa. Tra ve metadata sach: tua de, tac gia, danh gia, anh bia. Dung khi user muon tim sach hoac thong tin ve sach."
