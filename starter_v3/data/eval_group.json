@@ -11,10 +11,10 @@
       "failure_type": "wrong_tool",
       "expect": {
         "tool_calls": [
-          { "name": "lookup", "args": { "query": "ChatGPT" } }
+          { "name": "lookup", "args": { "query": "ChatGPT", "topic": "news" } }
         ]
       },
-      "metadata": { "what_it_tests": "Kiem tra agent su dung lookup de tim kiem thong tin tren web." }
+      "metadata": { "what_it_tests": "Agent su dung lookup de tim tin tuc tren web." }
     },
     {
       "id": "G02_fetch_url",
@@ -26,7 +26,7 @@
           { "name": "fetch", "args": { "url": "https://openai.com/blog" } }
         ]
       },
-      "metadata": { "what_it_tests": "Kiem tra agent su dung fetch khi nguoi dung da cung cap URL." }
+      "metadata": { "what_it_tests": "Agent su dung fetch khi co URL cu the." }
     },
     {
       "id": "G03_social_search",
@@ -38,7 +38,7 @@
           { "name": "social_search", "args": { "query": "GPT-5" } }
         ]
       },
-      "metadata": { "what_it_tests": "Phan biet social_search voi lookup." }
+      "metadata": { "what_it_tests": "Phan biet social_search (Twitter) voi lookup (web)." }
     },
     {
       "id": "G04_policy_search",
@@ -47,10 +47,10 @@
       "failure_type": "wrong_tool",
       "expect": {
         "tool_calls": [
-          { "name": "policy", "args": { "query": "bao mat du lieu" } }
+          { "name": "policy", "args": { "policy_area": "data_privacy" } }
         ]
       },
-      "metadata": { "what_it_tests": "Kiem tra agent su dung policy thay vi lookup." }
+      "metadata": { "what_it_tests": "Agent su dung policy thay vi lookup cho tai lieu noi bo." }
     },
     {
       "id": "G05_missing_info",
@@ -59,10 +59,10 @@
       "failure_type": "missing_info",
       "expect": {
         "tool_calls": [
-          { "name": "clarify", "args": { "question": "Ban muon xem bai dang cua tai khoan nao?" } }
+          { "name": "clarify", "args": { "response_type": "text" } }
         ]
       },
-      "metadata": { "what_it_tests": "Kiem tra agent hoi lai khi thieu ten tai khoan." }
+      "metadata": { "what_it_tests": "Agent hoi lai khi thieu ten tai khoan (chi check tool + response_type)." }
     },
     {
       "id": "G06_timeline",
@@ -77,7 +77,7 @@
           { "name": "timeline", "args": { "screenname": "openai" } }
         ]
       },
-      "metadata": { "what_it_tests": "Sau khi nguoi dung cung cap tai khoan, agent phai goi timeline." }
+      "metadata": { "what_it_tests": "Sau khi co handle, agent goi timeline." }
     },
     {
       "id": "G07_papers",
@@ -92,7 +92,7 @@
           { "name": "papers", "args": { "query": "Retrieval-Augmented Generation" } }
         ]
       },
-      "metadata": { "what_it_tests": "Kiem tra agent su dung papers thay vi lookup." }
+      "metadata": { "what_it_tests": "Agent su dung papers thay vi lookup." }
     },
     {
       "id": "G08_paper_text",
@@ -104,10 +104,10 @@
       ],
       "expect": {
         "tool_calls": [
-          { "name": "paper_text", "args": { "arxiv_url": "https://arxiv.org/pdf/2005.11401.pdf" } }
+          { "name": "paper_text", "args": { "arxiv_url": "2005.11401" } }
         ]
       },
-      "metadata": { "what_it_tests": "Kiem tra agent dung paper_text de doc noi dung PDF." }
+      "metadata": { "what_it_tests": "Agent dung paper_text de doc PDF (chap nhan ID hoac URL)." }
     },
     {
       "id": "G09_send_confirm",
@@ -119,10 +119,10 @@
       ],
       "expect": {
         "tool_calls": [
-          { "name": "send", "args": { "text": "Ban tom tat AI" } }
+          { "name": "send", "args": { "confirmed": true } }
         ]
       },
-      "metadata": { "what_it_tests": "Kiem tra agent chi gui sau khi nguoi dung xac nhan." }
+      "metadata": { "what_it_tests": "Agent goi send voi confirmed=true sau khi user xac nhan." }
     },
     {
       "id": "G10_format",
@@ -134,10 +134,10 @@
       ],
       "expect": {
         "tool_calls": [
-          { "name": "format", "args": { "items": [], "template": "sections" } }
+          { "name": "format", "args": { "template": "sections" } }
         ]
       },
-      "metadata": { "what_it_tests": "Kiem tra agent chi format du lieu co san, khong goi tool tim kiem lai." }
+      "metadata": { "what_it_tests": "Agent goi format khi user yeu cau trinh bay, khong goi cong cu tim kiem." }
     }
   ]
 }
