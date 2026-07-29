@@ -15,12 +15,8 @@ COPY . /app
 EXPOSE 8501
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3)"
+    CMD python -c "import os, urllib.request; port = os.getenv('PORT', '8501'); urllib.request.urlopen(f'http://127.0.0.1:{port}/_stcore/health', timeout=3)"
 
 WORKDIR /app/starter_v0
 
-CMD ["streamlit", "run", "app.py", \
-     "--server.address=0.0.0.0", \
-     "--server.port=8501", \
-     "--server.headless=true", \
-     "--browser.gatherUsageStats=false"]
+CMD ["sh", "-c", "exec streamlit run app.py --server.address=0.0.0.0 --server.port=${PORT:-8501} --server.headless=true --browser.gatherUsageStats=false"]
