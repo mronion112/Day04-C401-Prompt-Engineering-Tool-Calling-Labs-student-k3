@@ -3,7 +3,7 @@
 ## Team
 - Team: K3
 - Provider: OpenAI (GPT-4o-mini) / OpenRouter (LLaMA-4-Maverick)
-- Branch: TranQuangMinh
+- Branch: quangdao
 
 ---
 
@@ -25,15 +25,15 @@ Research agent tool evaluation với 13 tools: clarify, timeline, social_search,
 | **multiturn_accuracy** | 60% | 83% | 83% | **100%** |
 | **provider_error_cases** | 1 | 0 | 0 | **0** |
 
-### v0 → v1 (+33%%): clarify + cấm auto-format
+### v0 → v1 (+33%): clarify + cấm auto-format
 - Case fixed: R02, R04, R09, R10, R14, M01, M03 (7 case)
 
-### v1 → v2 (+5%%): boundary + name-handle + scope
+### v1 → v2 (+5%): boundary + name-handle + scope
 - Case fixed: R06, R12 (2 case)
 
-### v2 → v3 (+25%%): query keyword + parallel + clarify
+### v2 → v3 (+25%): query keyword + parallel + clarify
 - Case fixed: R03, R10, R11, R13, M02 (5 case)
-- **100%% all metrics**
+- **100% all metrics**
 
 ### Prompt evolution
 | Version | Key change |
@@ -41,7 +41,7 @@ Research agent tool evaluation với 13 tools: clarify, timeline, social_search,
 | v0 | "never ask, just guess, auto-send" → intentional bad baseline |
 | v1 | Allow clarify, ban auto-format, don't guess URLs |
 | v2 | Confirm before send, name→handle map, scope boundary |
-| v3 | Short keyword query, parallel calls, clarify ONLY rule → **100%%** |
+| v3 | Short keyword query, parallel calls, clarify ONLY rule → **100%** |
 
 ### v3 prompt engineering
 Prompt follows best practices from promptingguide.ai:
@@ -57,8 +57,8 @@ Prompt follows best practices from promptingguide.ai:
 
 | Metric | v3 (OpenAI) |
 |---|---|
-| **case_accuracy** | 40%% (4/10) |
-| **tool_routing_accuracy** | 50%% |
+| **case_accuracy** | 40% (4/10) |
+| **tool_routing_accuracy** | 50% |
 | **provider_error** | 0 |
 
 ### Pass (4)
@@ -117,7 +117,7 @@ GPT-4o-mini is a small model with limited tool-calling precision. On base eval w
 - Prompt optimization follows evidence-driven cycle: run → analyze failures → hypothesis → fix → verify
 - Tool descriptions in tools.yaml complement prompt instructions
 - Separate folders per version allow clean comparison
-- 100%% base eval achieved with proper prompt engineering
+- 100% base eval achieved with proper prompt engineering
 
 ### What belongs in system_prompt.md vs tools.yaml
 - **system_prompt.md**: High-level behavior rules (when to clarify, scope, query conventions)
