@@ -683,12 +683,13 @@ def render_tool_catalog(declarations: list[dict[str, Any]]) -> None:
                     st.json(parameters)
 
 
-def render_empty_chat_state() -> None:
+def render_empty_chat_state() -> str | None:
+    selected_prompt: str | None = None
     with st.container(border=True):
         st.markdown("**Bắt đầu một phiên research**")
         st.caption(
-            "Thử một trong các tình huống dưới đây để kiểm tra direct answer, "
-            "clarification boundary hoặc local policy tool."
+            "Bấm một tình huống để gửi ngay qua artifact đang chọn và so sánh "
+            "direct answer, clarification boundary hoặc local policy tool."
         )
         examples = (
             ("💬 Direct answer", "Bạn là gì và có thể làm gì?"),
@@ -696,10 +697,16 @@ def render_empty_chat_state() -> None:
             ("📚 Local policy", "Theo policy công ty, API key nên được bảo vệ thế nào?"),
         )
         columns = st.columns(3, gap="large")
-        for column, (label, prompt) in zip(columns, examples):
+        for index, (column, (label, prompt)) in enumerate(zip(columns, examples)):
             with column:
                 st.markdown(f"**{label}**")
-                st.write(prompt)
+                if st.button(
+                    prompt,
+                    key=f"starter_prompt_{index}",
+                    width="stretch",
+                ):
+                    selected_prompt = prompt
+    return selected_prompt
 
 
 def main() -> None:
@@ -816,17 +823,19 @@ def main() -> None:
     chat_tab, runs_tab, tools_tab = st.tabs(["💬 Chat", "📊 Run evidence", "🧰 Tools"])
 
     with chat_tab:
+        suggested_prompt = None
         if not st.session_state.display_messages:
-            render_empty_chat_state()
+            suggested_prompt = render_empty_chat_state()
         render_chat_history()
         turn_limit_reached = len(st.session_state.transcript["turns"]) >= MAX_TURNS_PER_SESSION
         if turn_limit_reached:
             st.warning("Session đã đạt giới hạn request. Hãy chọn New chat session nếu cần tiếp tục demo.")
-        user_text = st.chat_input(
+        typed_prompt = st.chat_input(
             "Nhập yêu cầu research...",
             max_chars=MAX_INPUT_CHARS,
             disabled=turn_limit_reached,
         )
+        user_text = suggested_prompt or typed_prompt
         if user_text and len(user_text) > MAX_INPUT_CHARS:
             st.error(f"Input vượt giới hạn {MAX_INPUT_CHARS} ký tự và chưa được gửi tới model.")
         elif user_text and user_text.strip():
