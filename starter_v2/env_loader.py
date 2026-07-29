@@ -23,4 +23,8 @@ def load_lab_env(root: Path) -> None:
     if external_path:
         load_dotenv(Path(external_path).expanduser())
         return
-    load_dotenv(root / ".env")
+    local_path = root / ".env"
+    if local_path.exists():
+        load_dotenv(local_path)
+        return
+    load_dotenv(root.parent / "starter_v0" / ".env")

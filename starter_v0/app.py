@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import hmac
+import importlib.util
 import json
 import os
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -18,10 +20,7 @@ from versioning import artifact_version_dict, build_artifact_version
 
 
 ROOT = Path(__file__).parent
-ARTIFACTS_DIR = ROOT / "artifacts"
-PROMPT_PATH = ARTIFACTS_DIR / "system_prompt.md"
-TOOLS_PATH = ARTIFACTS_DIR / "tools.yaml"
-RUNS_DIR = ROOT / "runs"
+WORKSPACE_ROOT = ROOT.parent
 TRANSCRIPTS_DIR = ROOT / "transcripts"
 PROVIDER_NAMES = ["openrouter", "openai", "anthropic", "gemini"]
 PROVIDER_ENV_KEYS = {
@@ -31,6 +30,10 @@ PROVIDER_ENV_KEYS = {
     "gemini": "GEMINI_API_KEY",
 }
 VERSION_LABELS = ["v0", "v1", "v2", "v3"]
+VERSION_ROOTS = {
+    version: WORKSPACE_ROOT / f"starter_{version}"
+    for version in VERSION_LABELS
+}
 MAX_INPUT_CHARS = 4000
 MAX_TURNS_PER_SESSION = 20
 MAX_TOOL_ROUNDS = 4
@@ -105,7 +108,7 @@ def sensitive_env_values() -> list[str]:
 
 
 def redact_text(value: str) -> str:
-    redacted = value.replace(str(ROOT.resolve()), "<PROJECT_ROOT>")
+    redacted = value.replace(str(WORKSPACE_ROOT.resolve()), "<WORKSPACE_ROOT>")
     for secret in sensitive_env_values():
         redacted = redacted.replace(secret, "[REDACTED]")
 
@@ -251,8 +254,47 @@ def secure_loop_result(result: dict[str, Any], system_prompt: str) -> dict[str, 
     return secured
 
 
-def tool_has_side_effect(name: str) -> bool:
-    tool_doc = ROOT / "tools" / name / "TOOL.md"
+def version_root(version: str) -> Path:
+    try:
+        root = VERSION_ROOTS[version].resolve()
+    except KeyError as exc:
+        raise ValueError(f"Unsupported artifact version: {version}") from exc
+    if not root.is_dir():
+        raise FileNotFoundError(f"Missing artifact directory: starter_{version}")
+    return root
+
+
+def load_version_tool_functions(version: str, root: Path) -> dict[str, Any]:
+    if version == "v0":
+        from tools import TOOL_FUNCTIONS
+
+        return dict(TOOL_FUNCTIONS)
+
+    module_name = f"_day04_{version}_tools"
+    cached = sys.modules.get(module_name)
+    if cached is not None:
+        return dict(cached.TOOL_FUNCTIONS)
+
+    init_path = root / "tools" / "__init__.py"
+    spec = importlib.util.spec_from_file_location(
+        module_name,
+        init_path,
+        submodule_search_locations=[str(init_path.parent)],
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load tool registry for {version}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(module_name, None)
+        raise
+    return dict(module.TOOL_FUNCTIONS)
+
+
+def tool_has_side_effect(name: str, root: Path) -> bool:
+    tool_doc = root / "tools" / name / "TOOL.md"
     try:
         raw = tool_doc.read_text(encoding="utf-8")
     except OSError:
@@ -272,10 +314,17 @@ def tool_has_side_effect(name: str) -> bool:
     )
 
 
-def filter_public_tools(declarations: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[str]]:
+def filter_public_tools(
+    declarations: list[dict[str, Any]],
+    root: Path,
+) -> tuple[list[dict[str, Any]], list[str]]:
     if env_flag("DAY04_ALLOW_SIDE_EFFECT_TOOLS") or env_flag("DAY04_ALLOW_ACTION_TOOLS"):
         return declarations, []
-    blocked = [item.get("name", "") for item in declarations if tool_has_side_effect(str(item.get("name", "")))]
+    blocked = [
+        item.get("name", "")
+        for item in declarations
+        if tool_has_side_effect(str(item.get("name", "")), root)
+    ]
     enabled = [item for item in declarations if item.get("name") not in blocked]
     return enabled, blocked
 
@@ -331,9 +380,20 @@ def new_session_id(version: str, provider_name: str) -> str:
 
 
 def load_runtime(version: str, provider_name: str, model_override: str) -> dict[str, Any]:
-    system_prompt = PROMPT_PATH.read_text(encoding="utf-8")
-    all_declarations = load_tool_declarations(TOOLS_PATH)
-    declarations, blocked_tools = filter_public_tools(all_declarations)
+    root = version_root(version)
+    prompt_path = root / "artifacts" / "system_prompt.md"
+    tools_path = root / "artifacts" / "tools.yaml"
+    system_prompt = prompt_path.read_text(encoding="utf-8")
+    all_declarations = load_tool_declarations(tools_path)
+    declarations, blocked_tools = filter_public_tools(all_declarations, root)
+    registry = load_version_tool_functions(version, root)
+    declared_names = {str(item["name"]) for item in all_declarations}
+    missing_implementations = sorted(declared_names - set(registry))
+    if missing_implementations:
+        raise RuntimeError(
+            f"Missing tool implementations for {version}: {', '.join(missing_implementations)}"
+        )
+    enabled_names = {str(item["name"]) for item in declarations}
     base_provider = make_provider(provider_name)
     selected_model = model_override.strip() or getattr(base_provider, "default_model", None)
     provider = RestrictedProvider(
@@ -341,13 +401,21 @@ def load_runtime(version: str, provider_name: str, model_override: str) -> dict[
         {item["name"] for item in declarations},
         system_prompt,
     )
-    artifact = build_artifact_version(version, PROMPT_PATH, TOOLS_PATH)
+    artifact = build_artifact_version(version, prompt_path, tools_path)
     return {
+        "root": root,
+        "prompt_path": prompt_path,
+        "tools_path": tools_path,
         "system_prompt": system_prompt,
         "declarations": declarations,
         "all_declarations": all_declarations,
         "blocked_tools": blocked_tools,
         "tools": to_openai_tools(declarations),
+        "tool_functions": {
+            name: implementation
+            for name, implementation in registry.items()
+            if name in enabled_names
+        },
         "provider": provider,
         "model": selected_model,
         "artifact": artifact,
@@ -394,8 +462,8 @@ def create_transcript(
         **artifact_version_dict(artifact),
         "provider": provider_name,
         "model": model,
-        "system_prompt": "artifacts/system_prompt.md",
-        "tools": "artifacts/tools.yaml",
+        "system_prompt": f"starter_{version}/artifacts/system_prompt.md",
+        "tools": f"starter_{version}/artifacts/tools.yaml",
         "history_window": history_window,
         "max_tool_rounds": max_tool_rounds,
         "enabled_tools": enabled_tools,
@@ -500,15 +568,27 @@ def render_chat_history() -> None:
                 render_tool_trace(message["turn"])
 
 
-def load_run_files() -> list[Path]:
-    if not RUNS_DIR.exists():
-        return []
-    return sorted(RUNS_DIR.glob("*.json"), key=lambda path: path.stat().st_mtime, reverse=True)
+def load_run_files(version: str | None = None) -> list[Path]:
+    roots = [version_root(version)] if version else list(VERSION_ROOTS.values())
+    run_files = [
+        path
+        for root in roots
+        for path in (root / "runs").glob("*.json")
+    ]
+    return sorted(
+        run_files,
+        key=lambda path: ("_base_" in path.name, path.stat().st_mtime),
+        reverse=True,
+    )
 
 
 def load_run(path: Path) -> dict[str, Any]:
     resolved = path.resolve()
-    if path.is_symlink() or resolved.parent != RUNS_DIR.resolve():
+    allowed_run_dirs = {
+        (root / "runs").resolve()
+        for root in VERSION_ROOTS.values()
+    }
+    if path.is_symlink() or resolved.parent not in allowed_run_dirs:
         raise ValueError("Invalid run path")
     if not resolved.is_file() or resolved.stat().st_size > MAX_RUN_FILE_BYTES:
         raise ValueError("Invalid run file")
@@ -518,19 +598,24 @@ def load_run(path: Path) -> dict[str, Any]:
     return redact_sensitive(payload)
 
 
-def render_run_evidence() -> None:
+def render_run_evidence(version: str) -> None:
     st.subheader("📊 Run evidence")
-    st.caption("Theo dõi metric và failure evidence từ các run v0 → v3.")
-    run_files = load_run_files()
+    st.caption(f"Metric và failure evidence của artifact {version}; ưu tiên base run mới nhất.")
+    run_files = load_run_files(version)
     if not run_files:
         st.info("Chưa có run JSON. Hãy chạy baseline v0 trước, sau đó refresh trang.")
         return
 
-    selected = st.selectbox(
+    run_options = {
+        f"{path.parent.parent.name}/{path.name}": path
+        for path in run_files
+    }
+    selected_label = st.selectbox(
         "Chọn run",
-        run_files,
-        format_func=lambda path: path.name,
+        list(run_options),
+        key=f"run_selector_{version}",
     )
+    selected = run_options[selected_label]
     try:
         run = load_run(selected)
     except (OSError, ValueError, json.JSONDecodeError):
@@ -565,7 +650,7 @@ def render_run_evidence() -> None:
             }
         )
     if rows:
-        st.dataframe(rows, use_container_width=True, hide_index=True)
+        st.dataframe(rows, width="stretch", hide_index=True)
 
     if env_flag("DAY04_ENABLE_EVIDENCE_DOWNLOADS"):
         st.download_button(
@@ -580,7 +665,7 @@ def render_run_evidence() -> None:
 
 def render_tool_catalog(declarations: list[dict[str, Any]]) -> None:
     st.subheader("🧰 Enabled tools")
-    st.caption("Danh sách runtime được đọc trực tiếp từ `artifacts/tools.yaml`.")
+    st.caption("Danh sách runtime được đọc trực tiếp từ tools.yaml của artifact đang chọn.")
     columns = st.columns(2, gap="large")
     for index, declaration in enumerate(declarations):
         name = declaration.get("name", "unknown")
@@ -650,7 +735,7 @@ def main() -> None:
                 max_value=MAX_TOOL_ROUNDS,
                 value=MAX_TOOL_ROUNDS,
             )
-        if st.button("＋ New chat session", use_container_width=True, type="primary"):
+        if st.button("＋ New chat session", width="stretch", type="primary"):
             reset_ui_session()
             st.rerun()
 
@@ -793,6 +878,7 @@ def main() -> None:
                             tools=runtime["tools"],
                             model=model_override.strip() or None,
                             max_tool_rounds=int(max_tool_rounds),
+                            tool_functions=runtime["tool_functions"],
                         )
                     if runtime["provider"].blocked_tool_calls:
                         raw_result["security_events"] = {
@@ -847,7 +933,7 @@ def main() -> None:
                     file_name=st.session_state.transcript_path.name,
                     mime="application/json",
                     disabled=not transcript.get("turns"),
-                    use_container_width=True,
+                    width="stretch",
                 )
             with evidence_cols[1]:
                 st.caption(
@@ -856,7 +942,7 @@ def main() -> None:
                 )
 
     with runs_tab:
-        render_run_evidence()
+        render_run_evidence(version)
 
     with tools_tab:
         render_tool_catalog(runtime["declarations"])
