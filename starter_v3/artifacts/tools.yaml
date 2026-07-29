@@ -1,0 +1,147 @@
+# starter_v0 — tool declarations (intentionally vague).
+# Names and descriptions here are a rough first draft. Routing rules, name->handle
+# mapping, arg conventions (news/timeframe/Top), and the send-confirmation boundary
+# are NOT spelled out anywhere yet. Your job is to make these declarations + the
+# system prompt good enough that the agent routes correctly on the eval.
+#
+# If you rename a tool, keep the name in sync across:
+#   this file  ->  tools/__init__.py (TOOL_FUNCTIONS)  ->  data/eval_base.json + data/eval_research_extension.json
+tools:
+  # ---------------- Core tools ----------------
+  - name: clarify
+    description: "Hỏi lại user khi thiếu thông tin hoặc cần xác nhận. Dùng response_type='text' để hỏi thông tin (handle, URL). Dùng response_type='yes_no' để xác nhận trước hành động nhạy cảm. QUAN TRỌNG: Khi gọi clarify, KHÔNG gọi bất kỳ tool nào khác trong cùng lượt. Chỉ gọi clarify một mình."
+    parameters:
+      type: object
+      properties:
+        question: {type: string, default: "", description: "Câu hỏi"}
+        response_type: {type: string, enum: [text, yes_no, choice], default: "text", description: "Kiểu trả lời"}
+        options: {type: array, default: [], items: {type: string}, description: "Các lựa chọn"}
+      required: [question]
+
+  - name: timeline
+    description: "Lấy bài đăng gần đây của MỘT tài khoản X/Twitter cụ thể. Dùng khi user hỏi về tweet của một người (ví dụ: 'Tweet của Elon Musk'). screenname là handle không có @. Phân biệt: timeline cho MỘT NGƯỜI, social_search cho MỘT CHỦ ĐỀ."
+    parameters:
+      type: object
+      properties:
+        screenname: {type: string, default: "", description: "Tên tài khoản"}
+        limit: {type: integer, default: 5, description: "Số lượng"}
+      required: [screenname]
+
+  - name: social_search
+    description: "Tìm bài đăng trên X/Twitter theo CHỦ ĐỀ/từ khóa. search_type='Top' khi user nói 'phổ biến/top', 'Latest' cho mới nhất. Phân biệt: social_search cho CHỦ ĐỀ, timeline cho MỘT NGƯỜI, lookup cho WEB."
+    parameters:
+      type: object
+      properties:
+        query: {type: string, default: "", description: "Từ khóa"}
+        search_type: {type: string, enum: [Latest, Top], default: "Latest", description: "Cách sắp xếp"}
+        limit: {type: integer, default: 5, description: "Số lượng"}
+      required: [query]
+
+  - name: lookup
+    description: "Tìm kiếm thông tin trên WEB qua Tavily. Dùng cho tin tức, bài viết, thông tin chung. query là TỪ KHÓA NGẮN (1-3 từ), KHÔNG copy nguyên câu hỏi. topic='news' cho tin tức, timeframe='day' cho hôm nay, 'week' cho tuần này. Phân biệt: lookup cho WEB, social_search cho TWITTER."
+    parameters:
+      type: object
+      properties:
+        query: {type: string, default: "", description: "Truy vấn"}
+        topic: {type: string, enum: [general, news], default: "general", description: "Phân loại"}
+        timeframe: {type: string, enum: [day, week, month, year], default: "week", description: "Khoảng thời gian"}
+        max_results: {type: integer, default: 5, description: "Số kết quả"}
+      required: [query]
+
+  - name: fetch
+    description: "Lấy nội dung từ một địa chỉ."
+    parameters:
+      type: object
+      properties:
+        url: {type: string, default: "", description: "Địa chỉ"}
+      required: [url]
+
+  - name: format
+    description: "Trình bày dữ liệu đã có thành văn bản. CHỈ dùng khi user yêu cầu rõ ràng việc tạo bản tin, digest, hoặc tổng hợp. Không được tự động gọi sau khi chạy tool khác."
+    parameters:
+      type: object
+      properties:
+        items:
+          type: array
+          default: []
+          description: "Danh sách item"
+          items:
+            type: object
+            properties:
+              title: {type: string}
+              url: {type: string}
+              source: {type: string}
+              summary: {type: string}
+              section: {type: string}
+        template: {type: string, enum: [brief, sections, bullets, thread, daily_ai_vn], default: "sections", description: "Khuôn"}
+        headline: {type: string, default: "", description: "Tiêu đề"}
+      required: [items, template]
+
+  # ---------------- Bonus tools ----------------
+  - name: send
+    description: "Gửi văn bản lên Telegram. CHỈ gọi sau khi user xác nhận rõ ràng. Trước khi gọi send, PHẢI gọi clarify(response_type='yes_no') để xác nhận. confirmed=false là dry-run, confirmed=true mới gửi thật."
+    parameters:
+      type: object
+      properties:
+        text: {type: string, default: "", description: "Nội dung"}
+        confirmed: {type: boolean, default: false, description: "Cờ xác nhận"}
+      required: [text]
+
+  - name: policy
+    description: "Tìm trong tài liệu nội bộ."
+    parameters:
+      type: object
+      properties:
+        query: {type: string, default: "", description: "Truy vấn"}
+        policy_area: {type: string, enum: [all, ai_research, source_citation, data_privacy, external_publishing, tool_usage], default: "all", description: "Nhóm"}
+        top_k: {type: integer, default: 3, description: "Số mục"}
+      required: [query]
+
+  - name: papers
+    description: "Tìm bài báo khoa học."
+    parameters:
+      type: object
+      properties:
+        query: {type: string, default: "", description: "Từ khóa"}
+        max_results: {type: integer, default: 5, description: "Số lượng"}
+        sort_by: {type: string, enum: [relevance, lastUpdatedDate, submittedDate], default: "relevance", description: "Sắp xếp"}
+      required: [query]
+
+  - name: paper_text
+    description: "Lấy nội dung text của một bài báo."
+    parameters:
+      type: object
+      properties:
+        arxiv_url: {type: string, default: "", description: "ID hoặc địa chỉ"}
+        max_pages: {type: integer, default: 5, description: "Số trang"}
+        max_chars: {type: integer, default: 8000, description: "Số ký tự"}
+      required: [arxiv_url]
+
+  - name: wikipedia
+    description: "Tra cứu kiến thức nền trên Wikipedia. Dùng cho định nghĩa, khái niệm, tiểu sử, sự kiện lịch sử. Trả về tóm tắt + URL. Dùng khi user hỏi 'X là gì?', 'Ai là Y?'. Không dùng cho tin tức hiện tại (dùng lookup)."
+    parameters:
+      type: object
+      properties:
+        query: {type: string, default: "", description: "Tên chủ đề, người, hoặc sự kiện"}
+        lang: {type: string, default: "en", description: "Mã ngôn ngữ (en, vi, fr, ...)"}
+        limit: {type: integer, default: 3, description: "Số kết quả"}
+      required: [query]
+
+  - name: translate
+    description: "Dịch văn bản giữa các ngôn ngữ qua Google Translate. Dùng khi user yêu cầu dịch một đoạn text. target_lang là ngôn ngữ đích (vi, en, fr, ja, ko, zh, ...). source_lang mặc định 'auto' tự phát hiện."
+    parameters:
+      type: object
+      properties:
+        text: {type: string, default: "", description: "Văn bản cần dịch"}
+        target_lang: {type: string, default: "vi", description: "Ngôn ngữ đích (vi, en, fr, ...)"}
+        source_lang: {type: string, default: "auto", description: "Ngôn ngữ nguồn (auto để tự phát hiện)"}
+      required: [text, target_lang]
+
+  - name: book
+    description: "Tim sach qua BigBookAPI theo tua sach, tac gia hoac tu khoa. Tra ve metadata sach: tua de, tac gia, danh gia, anh bia. Dung khi user muon tim sach hoac thong tin ve sach."
+    parameters:
+      type: object
+      properties:
+        query: {type: string, default: "", description: "Tua sach, tac gia hoac tu khoa"}
+        max_results: {type: integer, default: 3, description: "So luong ket qua"}
+      required: [query]

@@ -41,8 +41,12 @@ def trim_history(history: list[dict[str, str]], window: int) -> list[dict[str, s
     return history[-window * 2:]
 
 
-def execute_tool_call(call: ToolCall) -> dict[str, Any]:
-    func = TOOL_FUNCTIONS.get(call.name)
+def execute_tool_call(
+    call: ToolCall,
+    tool_functions: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    registry = TOOL_FUNCTIONS if tool_functions is None else tool_functions
+    func = registry.get(call.name)
     if not func:
         return {
             "tool": call.name,
@@ -84,6 +88,7 @@ def run_model_tool_loop(
     tools: list[dict[str, Any]],
     model: str | None,
     max_tool_rounds: int,
+    tool_functions: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     working_messages = list(messages)
     rounds: list[dict[str, Any]] = []
@@ -113,7 +118,7 @@ def run_model_tool_loop(
 
         for call in calls:
             print(f"🔧 {call.name}({json.dumps(call.args, ensure_ascii=False, sort_keys=True)})")
-            event = execute_tool_call(call)
+            event = execute_tool_call(call, tool_functions)
             round_record["tool_results"].append(event)
             all_tool_events.append(event)
 

@@ -1,0 +1,24 @@
+.git
+.gitignore
+**/.DS_Store
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+
+# Secrets are injected when the container starts, never copied into the image.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Local/private runtime artifacts.
+**/transcripts
+**/arxiv_papers
+
+# Editor and temporary files.
+.idea
+.vscode
+**/*.log
+**/*.tmp

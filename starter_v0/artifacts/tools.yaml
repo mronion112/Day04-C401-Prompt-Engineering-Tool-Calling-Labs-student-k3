@@ -116,3 +116,12 @@ tools:
         max_pages: {type: integer, default: 5, description: "Số trang"}
         max_chars: {type: integer, default: 8000, description: "Số ký tự"}
       required: [arxiv_url]
+
+  - name: book
+    description: "Tim sach qua BigBookAPI theo tua sach, tac gia hoac tu khoa. Tra ve metadata sach: tua de, tac gia, danh gia, anh bia. Dung khi user muon tim sach hoac thong tin ve sach."
+    parameters:
+      type: object
+      properties:
+        query: {type: string, default: "", description: "Tua sach, tac gia hoac tu khoa"}
+        max_results: {type: integer, default: 3, description: "So luong ket qua"}
+      required: [query]
